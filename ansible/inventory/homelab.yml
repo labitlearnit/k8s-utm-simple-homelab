@@ -1,0 +1,49 @@
+---
+# Kubernetes Simple Homelab Ansible Inventory
+# Hostnames resolve via /etc/hosts and ~/.ssh/config
+
+all:
+  vars:
+    ansible_user: k8s
+    ansible_ssh_private_key_file: ~/.ssh/k8slab.key
+    ansible_python_interpreter: /usr/bin/python3
+    
+  children:
+    # Jump/Management Server
+    jump_servers:
+      hosts:
+        jump:
+    
+    # HashiCorp Vault
+    vault_servers:
+      hosts:
+        vault:
+          
+    # etcd (single node)
+    etcd_servers:
+      hosts:
+        etcd-1:
+          
+    # Kubernetes Control Plane (single master)
+    k8s_masters:
+      hosts:
+        master-1:
+          
+    # Kubernetes Workers
+    k8s_workers:
+      hosts:
+        worker-1:
+        worker-2:
+          
+    # Group: All Kubernetes nodes (etcd + masters + workers)
+    k8s_nodes:
+      children:
+        etcd_servers:
+        k8s_masters:
+        k8s_workers:
+        
+    # Group: All infrastructure (non-k8s)
+    infrastructure:
+      children:
+        jump_servers:
+        vault_servers:

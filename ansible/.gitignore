@@ -1,0 +1,2 @@
+# Vault credentials - NEVER commit these!
+.vault-credentials/

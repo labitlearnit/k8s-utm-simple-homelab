@@ -1,0 +1,39 @@
+---
+# VM Provisioning Variables
+
+# Directories
+project_dir: "{{ ansible_env.HOME }}/k8s-utm-simple-homelab"
+iso_dir: "{{ project_dir }}/iso"
+img_dir: "{{ project_dir }}/images"
+bin_dir: "{{ project_dir }}/k8s-binaries"
+utm_dir: "{{ ansible_env.HOME }}/Library/Containers/com.utmapp.UTM/Data/Documents"
+
+# Ubuntu Cloud Image
+cloud_img_url: "https://cloud-images.ubuntu.com/releases/24.04/release/ubuntu-24.04-server-cloudimg-arm64.img"
+cloud_img_base: "{{ img_dir }}/ubuntu-24.04-cloudimg-arm64.img"
+
+# SSH Key
+ssh_key_private: "{{ ansible_env.HOME }}/.ssh/k8slab.key"
+ssh_key_public: "{{ ssh_key_private }}.pub"
+
+# Network
+network_prefix: "192.168.64"
+
+# VM Definitions: name, ip_suffix, ram_mb, vcpu, disk_gb
+vm_definitions:
+  - { name: "vault",    ip_suffix: 11, ram_mb: 2048, vcpu: 1, disk_gb: 20 }
+  - { name: "jump",     ip_suffix: 12, ram_mb: 2048, vcpu: 1, disk_gb: 20 }
+  - { name: "etcd-1",   ip_suffix: 21, ram_mb: 2048, vcpu: 1, disk_gb: 20 }
+  - { name: "master-1", ip_suffix: 31, ram_mb: 4096, vcpu: 2, disk_gb: 30 }
+  - { name: "worker-1", ip_suffix: 41, ram_mb: 4096, vcpu: 2, disk_gb: 40 }
+  - { name: "worker-2", ip_suffix: 42, ram_mb: 4096, vcpu: 2, disk_gb: 40 }
+
+# /etc/hosts entries for all VMs
+hosts_entries: |
+  # K8s Simple Homelab VMs
+  192.168.64.11  vault
+  192.168.64.12  jump
+  192.168.64.21  etcd-1
+  192.168.64.31  master-1
+  192.168.64.41  worker-1
+  192.168.64.42  worker-2

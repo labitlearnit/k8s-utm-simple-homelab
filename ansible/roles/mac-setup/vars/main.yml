@@ -1,0 +1,12 @@
+---
+mac_ssh_config_marker: "# K8s Simple Homelab"
+
+# Hosts to add to Mac /etc/hosts (only jump and vault needed from Mac)
+mac_hosts_entries: |
+  # K8s Homelab VMs
+  192.168.64.11  vault
+  192.168.64.12  jump
+  # End K8s Homelab
+
+jump_host_ip: "192.168.64.12"
+ssh_key_private: "{{ ansible_env.HOME }}/.ssh/k8slab.key"

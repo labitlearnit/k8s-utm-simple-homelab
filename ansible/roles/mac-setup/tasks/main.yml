@@ -1,0 +1,54 @@
+---
+# =============================================================================
+# Mac Host Setup Role
+# =============================================================================
+# Configures the Mac host for SSH access:
+#   1. Update /etc/hosts (vault + jump)
+#   2. Setup SSH config for jump (bastion)
+# =============================================================================
+
+- name: Check if K8s Homelab entries exist in /etc/hosts
+  ansible.builtin.lineinfile:
+    path: /etc/hosts
+    regexp: "# K8s Homelab VMs"
+    state: absent
+  check_mode: true
+  register: hosts_check
+  changed_when: false
+  become: true
+
+- name: Add K8s Homelab entries to /etc/hosts
+  ansible.builtin.blockinfile:
+    path: /etc/hosts
+    marker: "# {mark} K8s Homelab"
+    block: "{{ mac_hosts_entries }}"
+  become: true
+  when: not hosts_check.found
+
+- name: Check if SSH config has K8s Homelab entry
+  ansible.builtin.lineinfile:
+    path: "{{ ansible_env.HOME }}/.ssh/config"
+    regexp: "{{ mac_ssh_config_marker }}"
+    state: absent
+  check_mode: true
+  register: ssh_config_check
+  changed_when: false
+  failed_when: false
+
+- name: Add jump server SSH config
+  ansible.builtin.blockinfile:
+    path: "{{ ansible_env.HOME }}/.ssh/config"
+    marker: "{{ mac_ssh_config_marker }} {mark}"
+    block: |
+      Host jump
+          HostName {{ jump_host_ip }}
+          User k8s
+          IdentityFile {{ ssh_key_private }}
+          StrictHostKeyChecking no
+          UserKnownHostsFile /dev/null
+          LogLevel ERROR
+          GSSAPIAuthentication no
+          PreferredAuthentications publickey
+    create: true
+    mode: '0600'
+  when: not (ssh_config_check.found | default(false))

@@ -1,0 +1,33 @@
+---
+# Cloud-init packages by VM role
+cloud_init_packages:
+  jump:
+    package_update: true
+    packages:
+      - openssh-server
+      - qemu-guest-agent
+      - git
+      - python3-pip
+      - python3-venv
+      - unzip
+      - curl
+      - jq
+      - sshpass
+  vault:
+    package_update: true
+    packages:
+      - unzip
+      - curl
+      - jq
+      - gnupg
+  worker:
+    package_update: true
+    packages:
+      - apt-transport-https
+      - ca-certificates
+      - curl
+      - socat
+      - conntrack
+  default:
+    package_update: false
+    packages: []

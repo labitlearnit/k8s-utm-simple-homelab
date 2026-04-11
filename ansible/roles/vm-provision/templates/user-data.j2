@@ -1,0 +1,67 @@
+#cloud-config
+hostname: {{ vm_name }}
+manage_etc_hosts: false
+
+users:
+  - default
+  - name: k8s
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      - {{ ssh_public_key }}
+
+ssh_pwauth: false
+
+{% set role_key = 'worker' if vm_name.startswith('worker') else vm_name %}
+{% set pkg_config = cloud_init_packages.get(role_key, cloud_init_packages.default) %}
+package_update: {{ pkg_config.package_update | lower }}
+package_upgrade: false
+{% if pkg_config.packages %}
+packages:
+{% for pkg in pkg_config.packages %}
+  - {{ pkg }}
+{% endfor %}
+{% endif %}
+
+write_files:
+  - path: /etc/cloud/cloud.cfg.d/99-datasource.cfg
+    content: |
+      datasource_list: [NoCloud, None]
+  - path: /etc/hosts
+    content: |
+      127.0.0.1 localhost
+      127.0.1.1 {{ vm_name }}
+
+      # K8s Simple Homelab VMs
+      192.168.64.11  vault
+      192.168.64.12  jump
+      192.168.64.21  etcd-1
+      192.168.64.31  master-1
+      192.168.64.41  worker-1
+      192.168.64.42  worker-2
+
+      # IPv6
+      ::1 ip6-localhost ip6-loopback
+      fe00::0 ip6-localnet
+      ff00::0 ip6-mcastprefix
+      ff02::1 ip6-allnodes
+      ff02::2 ip6-allrouters
+
+runcmd:
+  - systemctl disable systemd-networkd-wait-online.service || true
+  - systemctl mask systemd-networkd-wait-online.service || true
+  - growpart /dev/vda 1 || true
+  - resize2fs /dev/vda1 || true
+{% if vm_name == 'jump' %}
+  - systemctl enable qemu-guest-agent || true
+  - systemctl start qemu-guest-agent || true
+  - mkdir -p /home/k8s/.ssh && chown k8s:k8s /home/k8s/.ssh && chmod 700 /home/k8s/.ssh
+  - echo 'export VAULT_ADDR="http://vault:8200"' >> /etc/profile.d/vault.sh
+  - chmod +x /etc/profile.d/vault.sh
+  - pip3 install --break-system-packages ansible
+  - wget -qO- https://apt.releases.hashicorp.com/gpg | gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg
+  - echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg arch=arm64] https://apt.releases.hashicorp.com $(lsb_release -cs) main" > /etc/apt/sources.list.d/hashicorp.list
+  - apt-get update
+  - apt-get install -y vault terraform
+{% endif %}

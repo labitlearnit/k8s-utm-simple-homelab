@@ -1,0 +1,113 @@
+---
+# =============================================================================
+# Create a single UTM VM
+# =============================================================================
+# Called in a loop from main.yml with vm_name, vm_ip, vm_ram_mb, vm_vcpu, vm_disk_gb
+# =============================================================================
+
+- name: "{{ vm_name }} - Check if VM already exists"
+  ansible.builtin.stat:
+    path: "{{ utm_dir }}/{{ vm_name }}.utm"
+  register: vm_dir_stat
+
+- name: "{{ vm_name }} - Create VM"
+  when: not vm_dir_stat.stat.exists
+  block:
+    - name: "{{ vm_name }} - Create VM Data directory"
+      ansible.builtin.file:
+        path: "{{ utm_dir }}/{{ vm_name }}.utm/Data"
+        state: directory
+        mode: '0755'
+
+    # -- Cloud-init ISO --
+    - name: "{{ vm_name }} - Create temp directory for cloud-init"
+      ansible.builtin.tempfile:
+        state: directory
+      register: cloud_init_tmp
+
+    - name: "{{ vm_name }} - Generate meta-data"
+      ansible.builtin.template:
+        src: meta-data.j2
+        dest: "{{ cloud_init_tmp.path }}/meta-data"
+        mode: '0644'
+
+    - name: "{{ vm_name }} - Generate user-data"
+      ansible.builtin.template:
+        src: user-data.j2
+        dest: "{{ cloud_init_tmp.path }}/user-data"
+        mode: '0644'
+
+    - name: "{{ vm_name }} - Generate network-config"
+      ansible.builtin.template:
+        src: network-config.j2
+        dest: "{{ cloud_init_tmp.path }}/network-config"
+        mode: '0644'
+
+    - name: "{{ vm_name }} - Create cloud-init ISO"
+      ansible.builtin.command:
+        cmd: >
+          mkisofs -output {{ iso_dir }}/{{ vm_name }}-cidata.iso
+          -volid cidata -joliet -rock {{ cloud_init_tmp.path }}
+      changed_when: true
+
+    - name: "{{ vm_name }} - Remove temp directory"
+      ansible.builtin.file:
+        path: "{{ cloud_init_tmp.path }}"
+        state: absent
+
+    # -- Disk images --
+    - name: "{{ vm_name }} - Copy cloud image as VM disk"
+      ansible.builtin.copy:
+        src: "{{ cloud_img_base }}"
+        dest: "{{ utm_dir }}/{{ vm_name }}.utm/Data/{{ vm_name }}-disk.qcow2"
+        remote_src: true
+        mode: '0644'
+
+    - name: "{{ vm_name }} - Resize VM disk"
+      ansible.builtin.command:
+        cmd: "qemu-img resize {{ utm_dir }}/{{ vm_name }}.utm/Data/{{ vm_name }}-disk.qcow2 {{ vm_disk_gb }}G"
+      changed_when: true
+
+    - name: "{{ vm_name }} - Convert cloud-init ISO to qcow2"
+      ansible.builtin.command:
+        cmd: >
+          qemu-img convert -f raw -O qcow2
+          {{ iso_dir }}/{{ vm_name }}-cidata.iso
+          {{ utm_dir }}/{{ vm_name }}.utm/Data/{{ vm_name }}-cidata.qcow2
+      changed_when: true
+
+    # -- Generate UUIDs and MAC --
+    - name: "{{ vm_name }} - Generate VM UUID"
+      ansible.builtin.command:
+        cmd: uuidgen
+      register: vm_uuid_result
+      changed_when: false
+
+    - name: "{{ vm_name }} - Generate Disk UUID"
+      ansible.builtin.command:
+        cmd: uuidgen
+      register: disk_uuid_result
+      changed_when: false
+
+    - name: "{{ vm_name }} - Generate CIDATA UUID"
+      ansible.builtin.command:
+        cmd: uuidgen
+      register: cidata_uuid_result
+      changed_when: false
+
+    - name: "{{ vm_name }} - Set UUID facts"
+      ansible.builtin.set_fact:
+        vm_uuid: "{{ vm_uuid_result.stdout | upper }}"
+        disk_uuid: "{{ disk_uuid_result.stdout | upper }}"
+        cidata_uuid: "{{ cidata_uuid_result.stdout | upper }}"
+
+    - name: "{{ vm_name }} - Generate MAC address"
+      ansible.builtin.set_fact:
+        mac_addr: "42:{{ '%02X:%02X:%02X:%02X:%02X' | format(256 | random, 256 | random, 256 | random, 256 | random, 256 | random) }}"
+
+    # -- UTM config --
+    - name: "{{ vm_name }} - Create config.plist"
+      ansible.builtin.template:
+        src: config.plist.j2
+        dest: "{{ utm_dir }}/{{ vm_name }}.utm/config.plist"
+        mode: '0644'
